@@ -55,7 +55,7 @@ for (const sequence of sequences) {
 
 
 const res = shorts.reduce((p, c, i) => p + c * parseInt(sequences[i]), 0)
-console.log(res)
+console.log("part2", res)
 
 
 function getResolvedKeypad(sequence) {

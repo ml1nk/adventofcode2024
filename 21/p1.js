@@ -70,9 +70,7 @@ for(const sequence of sequences) {
 
 const res = shorts.reduce((p,c,i)=>p+c*parseInt(sequences[i]),0)
 
-console.log(res)
-
-
+console.log("part1", res)
 
 function findShortest(data, from, to, path = []) {
     const results = []
