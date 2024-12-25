@@ -1,119 +1,138 @@
 const fs = require('fs');
 
+
 const data = fs.readFileSync('./input.txt', { encoding: 'utf8', flag: 'r' });
 
-const [input, gates] = data.split("\n\n")
+const [inputRaw, gatesRaw] = data.split("\n\n")
 
-
-const queue = []
-
-input.split("\n").forEach(e => {
-    const [key, value] = e.split(": ")
-    queue.push([key, value === "1"])
-})
-
-const logic = []
-
-const trigger = new Map()
-
-gates.split("\n").forEach(e => {
+const gates = new Map()
+gatesRaw.split("\n").forEach(e => {
     const [in1, op, in2, _, out] = e.split(" ")
-
     const d = {
-        in: [in1, in2],
+        in1,
+        in2,
         op,
         out,
     }
-
-    d.in.forEach(e => {
-        const t = trigger.get(e)
-        if (t === undefined) trigger.set(e, new Set([d]))
-        else t.add(d)
-    })
-
-    logic.push(d)
+    gates.set(out, d)
 })
 
-for(let p1i=0; p1i<queue.length; p1i++) {
-    for(let p1p=p1i+1; p1p<queue.length; p1p++) {
-        [input[p1i].out, input[p1p].out] = [input[p1p].out, input[p1i].out]
 
-        for(let p2i=0; p2i<queue.length; p2i++) {
-            if(p2i === p1i || p2i === p1p) continue
-            for(let p2p=p2i+1; p2p<queue.length; p2p++) {
-                if(p2p === p1i || p2p === p1p) continue
-                [input[p2i].out, input[p2p].out] = [input[p2p].out, input[p2i].out]
-                const a = solve([...queue])
-                if(isValid(a)) {
-                    console.log(input[p1i].out, input[p1p].out)
-                    process.exit(0)
-                }
-                [input[p2i].out, input[p2p].out] = [input[p2p].out, input[p2i].out]
+const switched = []
 
-            }
-        }
-        [input[p1i], input[p1p]] = [input[p1p], input[p1i]]
+function switchGate(a,b) {
+    switched.push(a)
+    switched.push(b)
+
+    const ag = gates.get(a)
+    const bg = gates.get(b)
+
+    ag.out = b
+    bg.out = a
+
+    gates.set(a, bg)
+    gates.set(b, ag)
+
+}
+
+/**
+ * Solved semiautomatic by counting xor/and/or gatter and trying to match it against binary adder.
+ */
+//switchGate("", "")
+//switchGate("", "")
+//switchGate("", "")
+//switchGate("", "")
+
+
+const input = new Map()
+inputRaw.split("\n").forEach(e => {
+    const [key, value] = e.split(": ")
+    input.set(key, value === "1")
+})
+
+const bits = input.size/2
+
+const x = getNumber("x")
+const y = getNumber("y")
+
+const output = getOutput(x, y)
+
+let or = 0
+let xor = 0
+let and = 0
+
+for(const [key, val] of output.entries()) {
+    const gate = gates.get(key)
+    console.log("")
+    console.log("solve", key)
+    or = 0
+    xor = 0
+    and = 0
+
+    const res = solve(gate)
+
+    console.log("")
+    console.log(or, xor, and)
+
+    if(res !== val) {
+        console.log(key, "expected", val, "got", res)
     }
 }
 
-
-function solve(queue) {
-    const state = new Map()
-    while (queue.length > 0) {
-        const el = queue.shift()
-
-        if (state.has(el[0])) {
-            console.error("state already exists", el, state.has(el[0]))
-            process.exit(1)
-        }
-
-        state.set(el[0], el[1])
-
-        const relevant = trigger.get(el[0])
-        if (relevant === undefined) continue
-        for (const key of relevant.keys()) {
-            const inp = key.in.map(e => state.get(e))
-            if (inp.some(e => e === undefined)) continue
-            queue.push([key.out, out(key.op, inp)])
-        }
-
-    }
-
-    return state
-}
+console.log("part2", switched.sort().join(","))
 
 
-function isValid(state) {
-    const rFilter = [...state.entries()]
-        .filter(e => e[0].startsWith("z"))
+function solve(gate) {
 
-    const mod = Math.pow(2, rFilter.length)
+    let in1 = input.get(gate.in1)
+    if(in1 === undefined) {
+        process.stdout.write("("+gate.in1 + ":")
+        in1 = solve(gates.get(gate.in1))
+        process.stdout.write(")")
+    } else process.stdout.write(gate.in1);
 
-    const zRes = rFilter
-        .sort((e, f) => e[0].localeCompare(f[0]))
-        .reduce((p, e, i) => p + (e[1] ? Math.pow(2, i) : 0), 0)
+        
+    process.stdout.write(" " + gate.op + " ")
+
+    let in2 = input.get(gate.in2)
+    if(in2 === undefined) {
+        process.stdout.write("("+gate.in2 + ":")
+        in2 = solve(gates.get(gate.in2))
+        process.stdout.write(")");
+    } else process.stdout.write(gate.in2);
 
 
-    const xRes = [...state.entries()]
-        .filter(e => e[0].startsWith("x"))
-        .sort((e, f) => e[0].localeCompare(f[0]))
-        .reduce((p, e, i) => p + (e[1] ? Math.pow(2, i) : 0), 0)
 
-    const yRes = [...state.entries()]
-        .filter(e => e[0].startsWith("y"))
-        .sort((e, f) => e[0].localeCompare(f[0]))
-        .reduce((p, e, i) => p + (e[1] ? Math.pow(2, i) : 0), 0)
-
-    return zRes === (xRes + yRes) % mod
-}
-
-function out(op, inp) {
-    switch (op) {
+    switch (gate.op) {
         case "AND":
-            return inp.every(e => e === true)
+            and++
+            return in1 && in2
         case "OR":
-            return inp.some(e => e === true)
+            or++
+            return in1 || in2
         case "XOR":
-            return inp.reduce((p, e) => !p != !e, false)
+            xor++
+            return !in1 != !in2
     }
+}
+
+function getNumber(char) {
+    let res=0
+    for(let i=0; i<bits; i++) {
+        if(input.get(char+i.toString().padStart(2, '0'))) res += Math.pow(2, i)
+    }
+    return res
+}
+
+function getOutput(x, y) {
+    const output = new Map()
+    let z = (x + y) % Math.pow(2, bits)
+    console.log(z)
+    for(i=0; i<bits; i++) {
+        output.set("z"+i.toString().padStart(2, '0'), z%2 == 1)
+        z = Math.floor(z/2)
+    }
+    console.log(output)
+
+    return output
 }
